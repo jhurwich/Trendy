@@ -2,8 +2,6 @@
 
 package main
 
-import "github.com/jhurwich/Trendy/markit"
-
 func main() {
-	markit.PollNewData("GOOG")
+	PollNewData("GOOG")
 }
