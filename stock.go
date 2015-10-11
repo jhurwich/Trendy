@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,8 +35,13 @@ func PollNewData(symbol string) (string, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	request.Request()
+	response, err := request.Request()
+	if err != nil {
+		fmt.Printf("PANIC\n%s\n\n", err)
+		log.Fatal(err)
+	}
 
+	fmt.Printf("RESPONSE:\n%+v\n\n", response)
 	return "", nil
 }
 
@@ -47,8 +53,8 @@ const markitChartAPIURL string = "http://dev.markitondemand.com/Api/v2/Interacti
 func NewMarkitChartAPIRequest(s *Stock, start time.Time, end time.Time) (*MarkitChartAPIRequest, error) {
 	request := &MarkitChartAPIRequest{
 		Stock:     s,
-		StartDate: start.Format("2006-01-02T15:04:05-00"), // formatted like 2011-06-01T00:00:00-00
-		EndDate:   end.Format("2006-01-02T15:04:05-00"),
+		StartDate: start.Format(ISOFormat), // formatted like 2011-06-01T00:00:00-00
+		EndDate:   end.Format(ISOFormat),
 		Url:       markitChartAPIURL,
 	}
 
@@ -89,22 +95,10 @@ func (request *MarkitChartAPIRequest) Request() (*MarkitChartAPIResponse, error)
 	response := new(MarkitChartAPIResponse)
 	err = json.NewDecoder(r.Body).Decode(response)
 	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("MarkitChartAPIResponse:", response)
-
-	// body, _ := ioutil.ReadAll(r.Body)
-	// fmt.Println("response Status:", r.Status)
-	// fmt.Println("response Headers:", r.Header)
-	// fmt.Println("response Body:", string(body))
-
-	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("\n\nREQUEST:\n %+v \n", request)
-	return nil, nil
+	return response, nil
 }
 
 // Markit API request format and supporting structs
@@ -136,18 +130,18 @@ type Dataseries struct {
 	Volume *Data `json:"volume,omitempty"`
 }
 type Data struct {
-	Min     float32    `json:"min,omitempty"`
-	Max     float32    `json:"max,omitempty"`
-	MaxDate *time.Time `json:"maxDate,omitempty"`
-	MinDate *time.Time `json:"minDate,omitempty"`
-	Values  []float32  `json:"values,omitempty"`
+	Min     float32   `json:"min,omitempty"`
+	Max     float32   `json:"max,omitempty"`
+	MaxDate *ISOTime  `json:"maxDate,omitempty"`
+	MinDate *ISOTime  `json:"minDate,omitempty"`
+	Values  []float32 `json:"values,omitempty"`
 }
 
 // Markit API response format
 type MarkitChartAPIResponse struct {
-	Labels    MarkitChartAPIResponseLabels
+	Labels    *MarkitChartAPIResponseLabels
 	Positions []float32
-	Dates     []time.Time
+	Dates     []ISOTime
 	Elements  []Element
 }
 type MarkitChartAPIResponseLabels struct {
@@ -156,4 +150,38 @@ type MarkitChartAPIResponseLabels struct {
 	Priorities []string `json:"priorities"`
 	Text       []string `json:"text"`
 	UtcDates   []string `json:"utcdates"`
+}
+
+/*  - - - - - ISOTime  - - - - - */
+
+// ISOTime extensions to time.Time including JSON (Un)Marshaling
+type ISOTime struct {
+	time.Time
+}
+
+const ISOFormat = "2006-01-02T15:04:05"
+
+func (it ISOTime) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	s := it.Time.Format(ISOFormat)
+	enc.Encode(s)
+	return b.Bytes(), nil
+}
+func (it *ISOTime) UnmarshalJSON(data []byte) error {
+	b := bytes.NewBuffer(data)
+	dec := json.NewDecoder(b)
+	var s string
+	if err := dec.Decode(&s); err != nil {
+		return err
+	}
+	t, err := time.Parse(ISOFormat, s)
+	if err != nil {
+		return err
+	}
+	it.Time = t
+	return nil
+}
+func (it ISOTime) String() string {
+	return it.Format(ISOFormat)
 }
