@@ -137,6 +137,60 @@ type Data struct {
 	Values  []float32 `json:"values,omitempty"`
 }
 
+func (ds *Dataseries) String() string {
+	str := "{"
+	if ds.Open != nil {
+		str = fmt.Sprintf(`%sopen:%s, `, str, ds.Open)
+	}
+	if ds.Close != nil {
+		str = fmt.Sprintf(`%sclose:%s, `, str, ds.Close)
+	}
+	if ds.High != nil {
+		str = fmt.Sprintf(`%shigh:%s, `, str, ds.High)
+	}
+	if ds.Low != nil {
+		str = fmt.Sprintf(`%slow:%s, `, str, ds.Low)
+	}
+	if ds.Volume != nil {
+		str = fmt.Sprintf(`%svolume:%s, `, str, ds.Volume)
+	}
+
+	// return empty string if no data has been added
+	if len(str) <= 1 {
+		return ""
+	}
+	str = str[:len(str)-2] // remove trailing comma and space
+
+	return fmt.Sprintf(`%s}`, str)
+}
+
+func (d *Data) String() string {
+	str := "{"
+	if d.Max != 0 {
+		str = fmt.Sprintf(`%smax:%f, `, str, d.Max)
+	}
+	if d.Min != 0 {
+		str = fmt.Sprintf(`%smin:%f, `, str, d.Min)
+	}
+	if d.MaxDate != nil {
+		str = fmt.Sprintf(`%smaxDate:%s, `, str, d.MaxDate)
+	}
+	if d.MinDate != nil {
+		str = fmt.Sprintf(`%sminDate:%s, `, str, d.MinDate)
+	}
+	if d.Values != nil {
+		str = fmt.Sprintf(`%svalues:%v, `, str, d.Values)
+	}
+
+	// return empty string if no data has been added
+	if len(str) <= 1 {
+		return ""
+	}
+	str = str[:len(str)-2] // remove trailing comma and space
+
+	return fmt.Sprintf(`%s}`, str)
+}
+
 // Markit API response format
 type MarkitChartAPIResponse struct {
 	Labels    *MarkitChartAPIResponseLabels
