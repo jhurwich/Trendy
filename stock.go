@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -32,7 +32,7 @@ func PollNewData(symbol string) (string, error) {
 		time.Now())
 
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	request.Request()
 
@@ -77,22 +77,30 @@ func NewMarkitChartAPIRequest(s *Stock, start time.Time, end time.Time) (*Markit
 }
 
 func (request *MarkitChartAPIRequest) Request() (*MarkitChartAPIResponse, error) {
-	response, err := http.Get(request.Url)
+	r, err := http.Get(request.Url)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return nil, errors.New(response.Status)
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		return nil, errors.New(r.Status)
 	}
 
-	body, _ := ioutil.ReadAll(response.Body)
-	fmt.Println("response Status:", response.Status)
-	fmt.Println("response Headers:", response.Header)
-	fmt.Println("response Body:", string(body))
+	response := new(MarkitChartAPIResponse)
+	err = json.NewDecoder(r.Body).Decode(response)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("MarkitChartAPIResponse:", response)
+
+	// body, _ := ioutil.ReadAll(r.Body)
+	// fmt.Println("response Status:", r.Status)
+	// fmt.Println("response Headers:", r.Header)
+	// fmt.Println("response Body:", string(body))
 
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	fmt.Printf("\n\nREQUEST:\n %+v \n", request)
@@ -115,24 +123,24 @@ type MarkitChartAPIRequestParams struct {
 type Element struct {
 	Symbol     string
 	Type       string
-	Params     []string   `json:",omitempty"`
-	Currency   string     `json:",omitempty"`
-	Timestamp  string     `json:"TimeStamp,omitempty"`
-	Dataseries Dataseries `json:"DataSeries"`
+	Params     []string    `json:",omitempty"`
+	Currency   string      `json:",omitempty"`
+	Timestamp  string      `json:"TimeStamp,omitempty"`
+	Dataseries *Dataseries `json:"DataSeries,omitempty"`
 }
 type Dataseries struct {
-	Open   Data `json:"open,omitempty"`
-	High   Data `json:"high,omitempty"`
-	Low    Data `json:"low,omitempty"`
-	Close  Data `json:"close,omitempty"`
-	Volume Data `json:"volume,omitempty"`
+	Open   *Data `json:"open,omitempty"`
+	High   *Data `json:"high,omitempty"`
+	Low    *Data `json:"low,omitempty"`
+	Close  *Data `json:"close,omitempty"`
+	Volume *Data `json:"volume,omitempty"`
 }
 type Data struct {
-	Min     float32   `json:"min"`
-	Max     float32   `json:"max"`
-	MaxDate time.Time `json:"maxDate"`
-	MinDate time.Time `json:"minDate"`
-	Values  []float32 `json:"values"`
+	Min     float32    `json:"min,omitempty"`
+	Max     float32    `json:"max,omitempty"`
+	MaxDate *time.Time `json:"maxDate,omitempty"`
+	MinDate *time.Time `json:"minDate,omitempty"`
+	Values  []float32  `json:"values,omitempty"`
 }
 
 // Markit API response format
