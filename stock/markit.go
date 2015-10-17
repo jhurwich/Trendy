@@ -1,51 +1,16 @@
 // Copyright 2015 Jordan Hurwich - no license granted
 
-package main
+package stock
 
 import (
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
+	"strings"
 	"time"
 )
-
-// Stock object for manages all data accesses for a specific stock symbol
-type Stock struct {
-	Symbol string
-}
-
-// Stock constructor
-func NewStock(sym string) *Stock {
-	return &Stock{
-		Symbol: sym,
-	}
-}
-
-func PollNewData(symbol string) (string, error) {
-	stock := NewStock(symbol)
-
-	request, err := NewMarkitChartAPIRequest(
-		stock,
-		time.Now().AddDate(0, 0, -3),
-		time.Now())
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	response, err := request.Request()
-	if err != nil {
-		fmt.Printf("PANIC\n%s\n\n", err)
-		log.Fatal(err)
-	}
-
-	fmt.Printf("RESPONSE:\n%+v\n\n", response)
-	return "", nil
-}
-
-/*  - - - - - Markit  - - - - - */
 
 const markitChartAPIURL string = "http://dev.markitondemand.com/Api/v2/InteractiveChart/json"
 
@@ -60,9 +25,10 @@ func NewMarkitChartAPIRequest(s *Stock, start time.Time, end time.Time) (*Markit
 
 	// use object to build json parameters for url
 	params := MarkitChartAPIRequestParams{
-		Normalized:   false,
-		NumberOfDays: 30, // TODO change!
-		DataPeriod:   "Day",
+		Normalized: false,
+		StartDate:  request.StartDate,
+		EndDate:    request.EndDate,
+		DataPeriod: "Day",
 		Elements: []Element{
 			Element{
 				Symbol: s.Symbol,
@@ -77,7 +43,6 @@ func NewMarkitChartAPIRequest(s *Stock, start time.Time, end time.Time) (*Markit
 	}
 	jsonStr, err := json.Marshal(params)
 	request.Url = fmt.Sprintf("%s?parameters=%s", request.Url, jsonStr)
-	fmt.Printf("request.Url:\n%s\n\n", request.Url)
 
 	return request, err
 }
@@ -95,7 +60,26 @@ func (request *MarkitChartAPIRequest) Request() (*MarkitChartAPIResponse, error)
 	response := new(MarkitChartAPIResponse)
 	err = json.NewDecoder(r.Body).Decode(response)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Could not decode response from Markit to JSON: %v", err)
+		return nil, err
+	}
+
+	// return any error that might have been provided by Markit in the response
+	if response.ExceptionType != "" {
+		str := "Exception Response from MarkitChartAPI"
+		if response.Message != "" {
+			response.Message = strings.Join([]string{`"`, response.Message, `"`}, "")
+			str = strings.Join([]string{str, response.Message}, ": ")
+		}
+		if response.Details != "" {
+			response.Details = strings.Join([]string{`"`, response.Details, `"`}, "")
+			str = strings.Join([]string{str, response.Details}, " - ")
+		}
+		return nil, errors.New(str)
+	}
+
+	if response.Positions == nil {
+		return nil, errors.New("No data")
 	}
 
 	return response, nil
@@ -110,7 +94,9 @@ type MarkitChartAPIRequest struct {
 }
 type MarkitChartAPIRequestParams struct {
 	Normalized   bool
-	NumberOfDays int
+	StartDate    string `json:",omitempty"`
+	EndDate      string `json:",omitempty"`
+	NumberOfDays int    `json:",omitempty"`
 	DataPeriod   string
 	Elements     []Element
 }
@@ -193,10 +179,14 @@ func (d *Data) String() string {
 
 // Markit API response format
 type MarkitChartAPIResponse struct {
-	Labels    *MarkitChartAPIResponseLabels
-	Positions []float32
-	Dates     []ISOTime
-	Elements  []Element
+	Labels         *MarkitChartAPIResponseLabels
+	Positions      []float32
+	Dates          []ISOTime
+	Elements       []Element
+	ExceptionType  string `json:",omitempty"`
+	Message        string `json:",omitempty"`
+	Details        string `json:",omitempty"`
+	InnerException string `json:",omitempty"`
 }
 type MarkitChartAPIResponseLabels struct {
 	Dates      []string `json:"dates"`
@@ -206,6 +196,14 @@ type MarkitChartAPIResponseLabels struct {
 	UtcDates   []string `json:"utcdates"`
 }
 
+func (reponse *MarkitChartAPIResponse) String() string {
+	json, err := json.Marshal(reponse)
+	if err != nil {
+		return err.Error()
+	}
+	return string(json)
+}
+
 /*  - - - - - ISOTime  - - - - - */
 
 // ISOTime extensions to time.Time including JSON (Un)Marshaling
@@ -213,7 +211,7 @@ type ISOTime struct {
 	time.Time
 }
 
-const ISOFormat = "2006-01-02T15:04:05"
+const ISOFormat = "2006-01-02T15:04:05-00"
 
 func (it ISOTime) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
@@ -229,6 +227,12 @@ func (it *ISOTime) UnmarshalJSON(data []byte) error {
 	if err := dec.Decode(&s); err != nil {
 		return err
 	}
+
+	// "-00" is often truncated by Markit. Make sure it's added if not present
+	if string(s[len(s)-3]) != "-" {
+		s = fmt.Sprintf("%s-00", s)
+	}
+
 	t, err := time.Parse(ISOFormat, s)
 	if err != nil {
 		return err

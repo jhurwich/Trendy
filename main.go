@@ -2,6 +2,8 @@
 
 package main
 
+import "github.com/jhurwich/trendy/stock"
+
 func main() {
-	PollNewData("GOOG")
+	stock.PollNewData("AMZN")
 }
