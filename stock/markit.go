@@ -196,6 +196,63 @@ type MarkitChartAPIResponseLabels struct {
 	UtcDates   []string `json:"utcdates"`
 }
 
+type DataType int
+
+const (
+	Open DataType = iota
+	High
+	Low
+	Close
+	// Volume
+)
+
+func (response *MarkitChartAPIResponse) GetSpan() Span {
+	def := Close
+	return response.GetSpanForDataType(def)
+}
+
+func (response *MarkitChartAPIResponse) GetSpanForDataType(dt DataType) Span {
+	foundPrice := false
+	var priceElem Element
+	for _, elem := range response.Elements {
+		// we only care about the price element
+		if elem.Type != "price" {
+			continue
+		}
+		priceElem = elem
+		foundPrice = true
+	}
+
+	if !foundPrice {
+		// price element not found, return empty span
+		return Span{}
+	}
+
+	var data *Data
+	switch dt {
+	case Open:
+		data = priceElem.Dataseries.Open
+	case High:
+		data = priceElem.Dataseries.High
+	case Low:
+		data = priceElem.Dataseries.Low
+	case Close:
+		data = priceElem.Dataseries.Close
+		// case Volume:
+		// 	data := priceElem.Dataseries.Volume // I'm not sure this one works, I think we need the elem.Type = "volume"
+	}
+
+	span := Span{}
+	for i := 0; i < len(data.Values); i++ {
+		value := data.Values[i]
+		time := response.Dates[i].UTC() // not sure this is kosher, but it converts to time.Time type...
+		m := Measure{Time: time, Value: value}
+		span = append(span, m)
+	}
+
+	return span
+}
+
 func (reponse *MarkitChartAPIResponse) String() string {
 	json, err := json.Marshal(reponse)
 	if err != nil {

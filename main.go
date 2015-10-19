@@ -2,8 +2,32 @@
 
 package main
 
-import "github.com/jhurwich/trendy/stock"
+import (
+	"flag"
+	"fmt"
+	"time"
+
+	"github.com/jhurwich/trendy/stock"
+)
+
+type Flags struct {
+	Local *bool
+}
+
+var flags Flags
 
 func main() {
-	stock.PollNewData("AMZN")
+	flags = Flags{Local: flag.Bool("local", false, "is the app running locally?")}
+	flag.Parse()
+
+	stock.DB.Setup(*flags.Local)
+
+	s := stock.NewStock("GOOG")
+	start := time.Date(2005, time.October, 1, 12, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 30)
+	span, err := s.Range(start, end)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Printf("SPAN: %+v\n", span)
 }
