@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jhurwich/trendy/stock"
+	"github.com/jhurwich/trendy/testhelpers"
 )
 
 // Confirm that DB.Setup completes with a functioning db and tables to populate
@@ -23,9 +24,9 @@ func TestSetup(t *testing.T) {
 	tdb := stock.DB.Setup(stock.TestLocal)
 
 	// record the changes we make so they can be reversed
-	td := tearDown{}
+	td := testhelpers.TearDown{}
 	for _, test := range tests {
-		td = append(td, (change{test.table, CREATE, key{}}))
+		td = append(td, (testhelpers.Change{Table: test.table, Action: testhelpers.CREATE}))
 	}
 	defer func() {
 		err := td.TearDown(tdb, t)
@@ -65,11 +66,9 @@ func TestInsert(t *testing.T) {
 	tdb := stock.DB.Setup(stock.TestLocal)
 
 	// record the changes we make so they can be reversed, all measures in span will be inserted
-	td := tearDown{}
+	td := testhelpers.TearDown{}
 	for _, test := range tests {
-		for _, measure := range test.span {
-			td = append(td, (change{"measures", INSERT, key{test.symbol, measure.Time}}))
-		}
+		td = td.TrackSpanInsert(test.symbol, &test.span, tdb, t)
 	}
 	defer func() {
 		err := td.TearDown(tdb, t)
@@ -124,11 +123,9 @@ func TestGetRange(t *testing.T) {
 	tdb := stock.DB.Setup(stock.TestLocal)
 
 	// record the changes we make so they can be reversed, all measures in span will be inserted
-	td := tearDown{}
+	td := testhelpers.TearDown{}
 	for _, test := range tests {
-		for _, measure := range test.span {
-			td = append(td, (change{"measures", INSERT, key{test.symbol, measure.Time}}))
-		}
+		td = td.TrackSpanInsert(test.symbol, &test.span, tdb, t)
 	}
 	defer func() {
 		err := td.TearDown(tdb, t)
@@ -163,61 +160,6 @@ func TestGetRange(t *testing.T) {
 }
 
 /* Utils */
-
-// keep a tape of all the actions taken by a test so they can be reversed with tearDown
-type action int
-
-const (
-	CREATE action = iota
-	INSERT
-)
-
-type key struct {
-	Symbol string
-	Date   time.Time
-}
-
-type change struct {
-	Table  string
-	Action action
-	Key    key
-}
-
-type tearDown []change
-
-func (td *tearDown) TearDown(tdb *stock.StockDB, t *testing.T) error {
-	sort.Sort(td) // sort actions so that CREATE is reversed last
-	for _, change := range *td {
-		var err error = nil
-		switch change.Action {
-		case CREATE:
-			// reverse of table creation is dropping the table
-			exec := strings.Join([]string{"DROP TABLE ", change.Table}, "")
-			_, err = tdb.Exec(exec)
-		case INSERT:
-			// reverse of insert is delete, symbol and time is key
-			exec := strings.Join([]string{"DELETE FROM ", change.Table, " WHERE Symbol = $1 AND Time = $2"}, "")
-			_, err = tdb.Exec(exec, change.Key.Symbol, stock.TimeForSQL(change.Key.Date))
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// implement sort.Interface on tearDown
-func (td tearDown) Len() int {
-	return len(td)
-}
-
-func (td tearDown) Less(i, j int) bool {
-	return td[i].Action > td[j].Action
-}
-
-func (td tearDown) Swap(i, j int) {
-	td[i], td[j] = td[j], td[i]
-}
 
 /* Global Constants and Vars */
 
