@@ -203,6 +203,7 @@ const emptyResponseBody string = `{"Labels":null,"Positions":null,"Dates":null,"
 const overloadResponseBody string = `Request blockedExceeded requests/sec limit.`
 
 /* Utils */
+
 var Holidays20112012 []time.Time = []time.Time{
 	time.Date(2011, time.January, 17, 12, 0, 0, 0, time.UTC),  // MLK day 2011
 	time.Date(2011, time.February, 21, 12, 0, 0, 0, time.UTC), // Washington's Bday 2011

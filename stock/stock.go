@@ -20,8 +20,6 @@ func NewStock(sym string) *Stock {
 	}
 }
 
-var markitDataStarts = time.Date(2005, time.October, 1, 12, 0, 0, 0, time.UTC)
-
 // query daily measure data between times provided for a stock
 func (s *Stock) Range(startDate time.Time, endDate time.Time) (Span, error) {
 
@@ -114,6 +112,26 @@ type Measure struct {
 	// trend float32 TODO(jhurwich) figure out where this belongs,, Trend with Start and End might be best
 }
 
+// implement an equals function for both span and measure
+func (l Span) Equal(r Span) bool {
+	if len(l) != len(r) {
+		return false
+	}
+
+	for i := 0; i < len(l); i++ {
+		if !l[i].Equal(r[i]) {
+			return false
+		}
+	}
+	return true
+}
+func (l Measure) Equal(r Measure) bool {
+	// measures are equal if the value, year, and day of year are the same
+	return l.Value == r.Value &&
+		l.Time.Year() == r.Time.Year() &&
+		l.Time.YearDay() == r.Time.YearDay()
+}
+
 // implement sort.Interface on Span
 func (s Span) Len() int {
 	return len(s)
@@ -127,6 +145,7 @@ func (s Span) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+// utility method for if time t is included within the spans timeframe
 func (s *Span) Covers(t time.Time) bool {
 	if len(*s) == 0 {
 		return false
