@@ -74,7 +74,7 @@ func TestMarkitChartAPIIntegration(t *testing.T) {
 
 		// start test server with success status
 		tsParams := testhelpers.TestServer{
-			Status: 200, RequestUrl: actualUrl, TestData: testdata, T: t,
+			Status: http.StatusOK, RequestUrl: actualUrl, TestData: testdata, T: t,
 		}
 		ts := httptest.NewServer(&tsParams)
 
@@ -98,7 +98,7 @@ func TestMarkitChartAPIIntegration(t *testing.T) {
 
 		// switch test server to success response and make request
 		tsParams = testhelpers.TestServer{
-			Status: 200, RequestUrl: actualUrl, TestData: testdata, T: t,
+			Status: http.StatusOK, RequestUrl: actualUrl, TestData: testdata, T: t,
 		}
 		response, err := request.Request()
 

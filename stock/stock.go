@@ -3,7 +3,6 @@
 package stock
 
 import (
-	"fmt"
 	"sort"
 	"time"
 )
@@ -20,9 +19,13 @@ func NewStock(sym string) *Stock {
 	}
 }
 
-// query daily measure data between times provided for a stock
+// Query daily measure data between times provided for a stock.
+// Range calls ActualRange with empty string for overrideUrl to get default url,
+// which should be Markit's. This separation exists for dependency injection in tests.
 func (s *Stock) Range(startDate time.Time, endDate time.Time) (Span, error) {
-
+	return s.ActualRange(startDate, endDate, "")
+}
+func (s *Stock) ActualRange(startDate time.Time, endDate time.Time, overrideUrl string) (Span, error) {
 	// Check if data is memoized in s.Span, if so return that subslice.
 	if s.Span.Covers(startDate) && s.Span.Covers(endDate) {
 		// Find the first date after startDate in Span. The smallest range that
@@ -37,14 +40,13 @@ func (s *Stock) Range(startDate time.Time, endDate time.Time) (Span, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("DBSPAN: %d %+v\n", len(dbSpan), dbSpan)
 
 	if len(dbSpan) > 0 {
 		// information was stored in the database, return it
 		return dbSpan, nil
 	} else {
 		// data wasn't in database, populate it
-		newSpan, err := s.Populate(startDate, endDate)
+		newSpan, err := s.ActualPopulate(startDate, endDate, overrideUrl)
 		if err != nil {
 			return nil, err
 		}
@@ -68,11 +70,22 @@ func (s *Stock) Range(startDate time.Time, endDate time.Time) (Span, error) {
 // 	return s.Span[:end], nil
 // }
 
-// populate daily measure data (value field) between times provided
+// Populate daily measure data (value field) between times provided.
+// Populate calls ActualPopulate with empty string for overrideUrl to get default url,
+// which should be Markit's. This separation exists for dependency injection in tests.
 func (s *Stock) Populate(startDate time.Time, endDate time.Time) (Span, error) {
+	return s.ActualPopulate(startDate, endDate, "")
+}
+func (s *Stock) ActualPopulate(startDate time.Time, endDate time.Time, overrideUrl string) (Span, error) {
+
 	request, err := NewMarkitChartAPIRequest(s, startDate, endDate)
 	if err != nil {
 		return nil, err
+	}
+
+	// if there's an overrideUrl specified, set the request to that url
+	if overrideUrl != "" {
+		request.Url = overrideUrl
 	}
 
 	response, err := request.Request()
@@ -81,7 +94,6 @@ func (s *Stock) Populate(startDate time.Time, endDate time.Time) (Span, error) {
 	}
 
 	s.Span = response.GetSpan()
-	fmt.Printf("GOT SPAN: %d %+v\n", len(s.Span), s.Span)
 
 	DB.Insert(s, &s.Span)
 
