@@ -23,9 +23,18 @@ type Flags struct {
 
 var flags Flags
 
-func main() {
-	flags = Flags{Local: flag.Bool("local", false, "is the app running locally?")}
-	flag.Parse()
+//TrendyServer is an extension of a Negroni instance
+type TrendyServer struct {
+	negroni.Negroni
+}
+
+//TrendyRouter is a n extension of a httprouter instance
+type TrendyRouter struct {
+	httprouter.Router
+}
+
+func NewTrendyServer(flags Flags) TrendyServer {
+	server := TrendyServer{*negroni.New()}
 
 	// initialize the database
 	if *flags.Local {
@@ -35,9 +44,8 @@ func main() {
 	}
 
 	// app manages request handling middleware, we use negroni package
-	app := negroni.New()
-	app.Use(negroni.NewRecovery())
-	app.Use(negroni.NewLogger())
+	server.Use(negroni.NewRecovery())
+	server.Use(negroni.NewLogger())
 
 	// use secure middleware package to only receive https connections
 	secureMiddleware := secure.New(secure.Options{
@@ -46,7 +54,7 @@ func main() {
 		SSLHost:              "",           // "localhost:8443" This is optional in production. The default behavior is to just redirect the request to the HTTPS protocol. Example: http://github.com/some_page would be redirected
 		IsDevelopment:        *flags.Local, // if running locally we run in development mode (SSL rqmt relaxed etc.)
 	})
-	app.Use(negroni.HandlerFunc(secureMiddleware.HandlerFuncWithNext))
+	server.Use(negroni.HandlerFunc(secureMiddleware.HandlerFuncWithNext))
 
 	// protect all app routes using RestGate with static X-Auth-Key and Secret
 	// if local we assume dev environment with HTTPS reqmt off and debug on
@@ -57,21 +65,35 @@ func main() {
 		Debug:              *flags.Local,
 		HTTPSProtectionOff: *flags.Local,
 	}
-	app.Use(restgate.New("X-Auth-Key", "X-Auth-Secret", restgate.Static, restgateConfig))
+	server.Use(restgate.New("X-Auth-Key", "X-Auth-Secret", restgate.Static, restgateConfig))
 
-	// 	requests are dispatched using httprouter package
+	// setup router, requests are dispatched using httprouter package
+	router := NewTrendyRouter()
+
+	server.UseHandler(&router)
+
+	return server
+}
+
+func NewTrendyRouter() TrendyRouter {
+	router := TrendyRouter{*httprouter.New()}
+
 	//	Routes:
 	// 		GET 	.../stock/<symbol>		GetStock()
-	//		POST	.../dev/add/<symbol>	AddStock()
-	router := httprouter.New()
+	// TODO	POST	.../dev/add/<symbol>	AddStock()
 	router.GET("/stock/:symbol", GetStock)
+	return router
+}
 
-	app.UseHandler(router)
+func main() {
+	flags = Flags{Local: flag.Bool("local", false, "is the app running locally?")}
+	flag.Parse()
 
+	server := NewTrendyServer(flags)
 	if *flags.Local {
-		app.Run(":8080")
+		server.Run(":8080")
 	} else {
-		// TODO app.Run(<prod port>)
+		// TODO server.Run(<prod port>)
 	}
 }
 
@@ -85,9 +107,9 @@ func GetStock(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// parse start and end times if provided
 	start, end := queryValues.Get("start"), queryValues.Get("end")
 	var startTime, endTime time.Time
-	var err error
+	loc, err := time.LoadLocation("America/New_York")
 	if start != "" {
-		startTime, err = time.Parse("2006-01-02", start)
+		startTime, err = time.ParseInLocation("2006-01-02", start, loc)
 		if err != nil {
 			errStr := fmt.Sprintf("Could not parse start as time. must be YYYY-MM-DD [%s]", start)
 			http.Error(w, errStr, http.StatusInternalServerError)
@@ -95,7 +117,7 @@ func GetStock(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		}
 	}
 	if end != "" {
-		endTime, err = time.Parse("2006-01-02", end)
+		endTime, err = time.ParseInLocation("2006-01-02", end, loc)
 		if err != nil {
 			errStr := fmt.Sprintf("Could not parse end as time. must be YYYY-MM-DD [%s]", end)
 			http.Error(w, errStr, http.StatusInternalServerError)

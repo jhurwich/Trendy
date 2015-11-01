@@ -16,10 +16,11 @@ const markitChartAPIURL string = "http://dev.markitondemand.com/Api/v2/Interacti
 
 // Constructor for MarkitChartAPIRequests
 func NewMarkitChartAPIRequest(s *Stock, start time.Time, end time.Time) (*MarkitChartAPIRequest, error) {
+	loc, err := time.LoadLocation("UTC")
 	request := &MarkitChartAPIRequest{
 		Stock:     s,
-		StartDate: start.Format(ISOFormat), // formatted like 2011-06-01T00:00:00-00
-		EndDate:   end.Format(ISOFormat),
+		StartDate: start.In(loc).Format(ISOFormat), // formatted like 2011-06-01T00:00:00-00 in UTC time
+		EndDate:   end.In(loc).Format(ISOFormat),
 		Url:       markitChartAPIURL,
 	}
 

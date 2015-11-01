@@ -106,7 +106,7 @@ func TestRangeIntegration(t *testing.T) {
 		// make sure database and memory also reflect the expected
 		checkMemoryAndDatabase(s, &expectedSpan, tdb, t)
 
-		// teardown changes
+		// teardown changes (not deferred because we want to do for each loop - not sure that's necessary though)
 		err = td.TearDown(tdb, t)
 		if err != nil {
 			t.Error(err)
