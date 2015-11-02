@@ -8,20 +8,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jhurwich/trendy/stock"
 	"github.com/jhurwich/trendy/testhelpers"
 )
-
-type TestData struct {
-	Sym                    string
-	StartDate              time.Time
-	EndDate                time.Time
-	ExpectedResponseBody   string
-	ExpectedMarkitResponse stock.MarkitChartAPIResponse
-	ExpectError            bool
-}
 
 func TestGetStockIntegration(t *testing.T) {
 	// start a new server so we can access it's ServeHTTP method
@@ -48,6 +38,7 @@ func TestGetStockIntegration(t *testing.T) {
 			t.Errorf("Attempted access without key/secret succeeded. Invalid access granted.\n>> Status:%d for %s", w.Code, path)
 		}
 
+		// try request again with key and secret set correctly
 		r, _ = http.NewRequest("GET", path, nil)
 		r.Header.Set("X-Auth-Key", "key")
 		r.Header.Set("X-Auth-Secret", "secret")
@@ -70,7 +61,6 @@ func TestGetStockIntegration(t *testing.T) {
 			expectedJson, err := json.Marshal(expectedStock)
 			if err != nil {
 				t.Errorf("Error generating JSON response for expected stock [%s]", test.Sym)
-				return
 			}
 			expectedStr := strings.Replace(string(expectedJson), "T12:", "T00:", -1) // expectation is at T12, returned at T00, this is a quick hacky fix
 
